@@ -67,6 +67,8 @@ GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::searchKey(
       if (laneId == src_lane) {
         myValue = *reinterpret_cast<const ValueT*>(
             reinterpret_cast<const unsigned char*>(&found_value));
+	myValue = found_value;
+	
         to_be_searched = false;
       }
     }

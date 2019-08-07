@@ -80,7 +80,11 @@ class GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> {
                                              const KeyT& myKey,
                                              const ValueT& myValue,
                                              const uint32_t bucket_id);
-
+  __device__ __forceinline__ void  insertKeyUnique(
+    int& to_be_inserted,
+    const uint32_t& laneId,
+    const KeyT& myKey,
+    const uint32_t bucket_id);
   // threads in a warp cooeparte with each other to search for keys
   // if found, it returns the corresponding value, else SEARCH_NOT_FOUND
   // is returned
@@ -228,9 +232,9 @@ class GpuSlabHash<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> {
   // returns some debug information about the slab hash
   std::string to_string();
   double computeLoadFactor(int flag);
-
+  void insertBulk(KeyT* d_key, ValueT* d_value, uint32_t num_vec, int *num_kmers_read,int totkmers, int num_of_reads);
   void buildBulk(KeyT* d_key, ValueT* d_value, uint32_t num_keys);
-  void searchIndividual(KeyT* d_query, ValueT* d_result, uint32_t num_queries);
+  void searchIndividual(KeyT* d_query, ValueT* d_result, uint32_t num_queries,int totkmers);
   void searchBulk(KeyT* d_query, ValueT* d_result, uint32_t num_queries);
   void deleteIndividual(KeyT* d_key, uint32_t num_keys);
   void batchedOperation(KeyT* d_key, ValueT* d_result, uint32_t num_ops);

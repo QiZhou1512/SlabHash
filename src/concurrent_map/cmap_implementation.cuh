@@ -28,11 +28,22 @@ void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::
 
 template <typename KeyT, typename ValueT>
 void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::
-    searchIndividual(KeyT* d_query, ValueT* d_result, uint32_t num_queries) {
+    insertBulk(KeyT* d_key, ValueT* d_value, uint32_t num_vec, int* num_kmers_read,int totkmers, int num_of_reads) {
+  
+  const uint32_t num_blocks = (totkmers + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+  // calling the kernel for bulk build:
   CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
-  const uint32_t num_blocks = (num_queries + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+  insert_table_kernel<KeyT, ValueT>
+      <<<num_blocks, BLOCKSIZE_>>>(d_key, d_value, num_vec,num_kmers_read,totkmers,num_of_reads,gpu_context_);
+}
+
+template <typename KeyT, typename ValueT>
+void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::
+    searchIndividual(KeyT* d_query, ValueT* d_result, uint32_t num_queries, int totkmers) {
+  CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
+  const uint32_t num_blocks = (totkmers + BLOCKSIZE_ - 1) / BLOCKSIZE_;
   search_table<KeyT, ValueT><<<num_blocks, BLOCKSIZE_>>>(
-      d_query, d_result, num_queries, gpu_context_);
+      d_query, d_result, num_queries,totkmers ,gpu_context_);
 }
 
 template <typename KeyT, typename ValueT>
@@ -43,6 +54,9 @@ void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::
   search_table_bulk<KeyT, ValueT><<<num_blocks, BLOCKSIZE_>>>(
       d_query, d_result, num_queries, gpu_context_);
 }
+
+
+
 
 template <typename KeyT, typename ValueT>
 void GpuSlabHash<KeyT, ValueT, SlabHashTypeT::ConcurrentMap>::

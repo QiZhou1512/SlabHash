@@ -39,6 +39,7 @@
 #include "concurrent_set/cset_warp_operations.cuh"
 
 // helper kernels:
+#include "concurrent_map/device/insert_kernel.cuh"
 #include "concurrent_map/device/build.cuh"
 #include "concurrent_map/device/delete_kernel.cuh"
 #include "concurrent_map/device/misc_kernels.cuh"

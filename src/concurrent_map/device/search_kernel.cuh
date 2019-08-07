@@ -22,11 +22,12 @@ __global__ void search_table(
     KeyT* d_queries,
     ValueT* d_results,
     uint32_t num_queries,
+    int totkmers,
     GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> slab_hash) {
   uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
   uint32_t laneId = threadIdx.x & 0x1F;
 
-  if ((tid - laneId) >= num_queries) {
+  if ((tid - laneId) >= totkmers) {
     return;
   }
 
@@ -37,8 +38,15 @@ __global__ void search_table(
   ValueT myResult = static_cast<ValueT>(SEARCH_NOT_FOUND);
   uint32_t myBucket = 0;
   bool to_search = false;
-  if (tid < num_queries) {
-    myQuery = d_queries[tid];
+  int index_vector = 0;
+  int index_array =0;
+  if (tid < totkmers) {
+    index_vector = tid/16;
+    index_array = tid%16;
+    myQuery = ((d_queries[index_vector]<<(2*index_array))|
+                        (index_array!=0
+                                ?(d_queries[index_vector+1]>>(2*(16-index_array)))
+                                :0x0));
     myBucket = slab_hash.computeBucket(myQuery);
     to_search = true;
   }
@@ -46,7 +54,7 @@ __global__ void search_table(
   slab_hash.searchKey(to_search, laneId, myQuery, myResult, myBucket);
 
   // writing back the results:
-  if (tid < num_queries) {
+  if (tid < totkmers) {
     d_results[tid] = myResult;
   }
 }

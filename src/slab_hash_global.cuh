@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "slab_alloc.cuh"
+#include "../SlabAlloc/src/slab_alloc.cuh"
 
 #define CHECK_CUDA_ERROR(call)                                \
   do {                                                        \

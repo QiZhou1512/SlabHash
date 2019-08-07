@@ -26,6 +26,7 @@ template <typename KeyT,
           SlabHashTypeT SlabHashT>
 class gpu_hash_table {
  private:
+  int num_reads_;
   uint32_t max_keys_;
   uint32_t num_buckets_;
   int64_t seed_;
@@ -46,15 +47,19 @@ class gpu_hash_table {
   ValueT* d_value_;
   KeyT* d_query_;
   ValueT* d_result_;
-
-  gpu_hash_table(uint32_t max_keys,
+  int* d_num_kmers_read_;
+  gpu_hash_table(int num_reads,
+		 uint32_t max_keys,
                  uint32_t num_buckets,
                  const uint32_t device_idx, 
                  const int64_t seed,
                  const bool req_values = true,
                  const bool identity_hash = false,
-                 const bool verbose = false)
-      : max_keys_(max_keys),
+                 const bool verbose = false
+		 )
+      : 
+	num_reads_(num_reads),
+	max_keys_(max_keys),
         num_buckets_(num_buckets),
         seed_(seed),
         req_values_(req_values),
@@ -70,6 +75,8 @@ class gpu_hash_table {
 
     // allocating key, value arrays:
     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_key_, sizeof(KeyT) * max_keys_));
+    CHECK_CUDA_ERROR(cudaMalloc((void**)&d_num_kmers_read_, sizeof(int) * num_reads_ ));
+
     if (req_values_) {
       CHECK_CUDA_ERROR(
           cudaMalloc((void**)&d_value_, sizeof(ValueT) * max_keys_));
@@ -92,6 +99,7 @@ class gpu_hash_table {
   ~gpu_hash_table() {
     CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
     CHECK_CUDA_ERROR(cudaFree(d_key_));
+    CHECK_CUDA_ERROR(cudaFree(d_num_kmers_read_));
     if (req_values_) {
       CHECK_CUDA_ERROR(cudaFree(d_value_));
     }
@@ -104,6 +112,36 @@ class gpu_hash_table {
     // slab hash:
     delete (slab_hash_);
   }
+
+  //insert bulk function	
+  float hash_insert (KeyT* h_key, uint32_t num_blocks, int*h_num_kmers_read,int totkmers ) {
+    // moving key-values to the device:
+    CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_key_, h_key, sizeof(KeyT) * num_blocks, cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_num_kmers_read_, h_num_kmers_read,
+				sizeof(int) * num_reads_,
+				cudaMemcpyHostToDevice));
+
+    float temp_time = 0.0f;
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    cudaEventRecord(start, 0);
+
+    // calling slab-hash's bulk insert procedure:
+    slab_hash_->insertBulk(d_key_, d_value_, num_blocks, d_num_kmers_read_,totkmers, num_reads_);
+
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&temp_time, start, stop);
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    return temp_time;
+} 
+
 
   float hash_build(KeyT* h_key, ValueT* h_value, uint32_t num_keys) {
     // moving key-values to the device:
@@ -135,11 +173,11 @@ class gpu_hash_table {
     return temp_time;
   }
 
-  float hash_search(KeyT* h_query, ValueT* h_result, uint32_t num_queries) {
+  float hash_search(KeyT* h_query, ValueT* h_result, uint32_t num_blocks,int totkmers) {
     CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
-    CHECK_CUDA_ERROR(cudaMemcpy(d_query_, h_query, sizeof(KeyT) * num_queries,
+    CHECK_CUDA_ERROR(cudaMemcpy(d_query_, h_query, sizeof(KeyT) * num_blocks,
                                 cudaMemcpyHostToDevice));
-    CHECK_CUDA_ERROR(cudaMemset(d_result_, 0xFF, sizeof(ValueT) * num_queries));
+    CHECK_CUDA_ERROR(cudaMemset(d_result_, 0xFF, sizeof(ValueT) * num_blocks));
 
     float temp_time = 0.0f;
 
@@ -149,7 +187,7 @@ class gpu_hash_table {
     cudaEventRecord(start, 0);
 
     // == calling slab hash's individual search:
-    slab_hash_->searchIndividual(d_query_, d_result_, num_queries);
+    slab_hash_->searchIndividual(d_query_, d_result_, num_blocks, totkmers);
     //==
 
     cudaEventRecord(stop, 0);
@@ -160,7 +198,7 @@ class gpu_hash_table {
     cudaEventDestroy(stop);
 
     CHECK_CUDA_ERROR(cudaMemcpy(h_result, d_result_,
-                                sizeof(ValueT) * num_queries,
+                                sizeof(ValueT) * totkmers,
                                 cudaMemcpyDeviceToHost));
     cudaDeviceSynchronize();
     return temp_time;
