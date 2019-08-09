@@ -48,7 +48,9 @@ class gpu_hash_table {
   KeyT* d_query_;
   ValueT* d_result_;
   int* d_num_kmers_read_;
-  gpu_hash_table(int num_reads,
+  int num_kmers_;
+  gpu_hash_table(int num_kmers,
+		 int num_reads,
 		 uint32_t max_keys,
                  uint32_t num_buckets,
                  const uint32_t device_idx, 
@@ -58,6 +60,7 @@ class gpu_hash_table {
                  const bool verbose = false
 		 )
       : 
+	num_kmers_(num_kmers),
 	num_reads_(num_reads),
 	max_keys_(max_keys),
         num_buckets_(num_buckets),
@@ -79,11 +82,11 @@ class gpu_hash_table {
 
     if (req_values_) {
       CHECK_CUDA_ERROR(
-          cudaMalloc((void**)&d_value_, sizeof(ValueT) * max_keys_));
+          cudaMalloc((void**)&d_value_, sizeof(ValueT) * max_keys));
     }
     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_query_, sizeof(KeyT) * max_keys_));
     CHECK_CUDA_ERROR(
-        cudaMalloc((void**)&d_result_, sizeof(ValueT) * max_keys_));
+        cudaMalloc((void**)&d_result_, sizeof(ValueT) *num_kmers_ ));
 
     // allocate an initialize the allocator:
     dynamic_allocator_ = new DynamicAllocatorT();
@@ -173,11 +176,14 @@ class gpu_hash_table {
     return temp_time;
   }
 
-  float hash_search(KeyT* h_query, ValueT* h_result, uint32_t num_blocks,int totkmers) {
+  float hash_search(KeyT* h_query, ValueT* h_result, uint32_t num_blocks, int*h_num_kmers_read,int totkmers) {
     CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
     CHECK_CUDA_ERROR(cudaMemcpy(d_query_, h_query, sizeof(KeyT) * num_blocks,
                                 cudaMemcpyHostToDevice));
-    CHECK_CUDA_ERROR(cudaMemset(d_result_, 0xFF, sizeof(ValueT) * num_blocks));
+    CHECK_CUDA_ERROR(cudaMemset(d_result_, 0xFF, sizeof(ValueT) * totkmers));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_num_kmers_read_, h_num_kmers_read,
+                                sizeof(int) * num_reads_,
+                                cudaMemcpyHostToDevice));    
 
     float temp_time = 0.0f;
 
@@ -187,7 +193,7 @@ class gpu_hash_table {
     cudaEventRecord(start, 0);
 
     // == calling slab hash's individual search:
-    slab_hash_->searchIndividual(d_query_, d_result_, num_blocks, totkmers);
+    slab_hash_->searchIndividual(d_query_, d_result_,  num_blocks, d_num_kmers_read_,totkmers, num_reads_);
     //==
 
     cudaEventRecord(stop, 0);
