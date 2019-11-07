@@ -160,7 +160,6 @@ GpuSlabHashContext<KeyT,ValueT, SlabHashTypeT::ConcurrentMap>::insertKeyUnique(
       				uint32_t found_value =
                 			__shfl_sync(0xFFFFFFFF, src_unit_data, __ffs(isFound), 32);
       				if ((laneId == src_lane)&&(to_be_inserted==1)) {
-        				uint32_t value = 0;
         				const uint32_t* p = (next == SlabHashT::A_INDEX_POINTER)
                         	        	? getPointerFromBucket(src_bucket, dest_lane)
                                 		: getPointerFromSlab(next, dest_lane);

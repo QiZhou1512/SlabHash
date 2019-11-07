@@ -72,7 +72,10 @@ class GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> {
   computeBucket(const KeyT& key) const {
     return (((hash_x_ ^ key) + hash_y_) % PRIME_DIVISOR_) % num_buckets_;
   }
-
+  __device__ __host__ __forceinline__ uint32_t
+  computeBucketindex(const KeyT& key, int index, int num_div) const {
+    return ((((hash_x_ ^ key) + hash_y_) % PRIME_DIVISOR_) % (num_buckets_/num_div))+((num_buckets_/num_div)*index);
+  }
   // threads in a warp cooperate with each other to insert key-value pairs
   // into the slab hash
   __device__ __forceinline__ void insertPair(bool& to_be_inserted,
@@ -96,7 +99,7 @@ class GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> {
 
   // threads in a warp cooperate with each other to search for keys.
   // the main difference with above function is that it is assumed all
-  // threads have something to search for
+  // threads have something to search forF
   __device__ __forceinline__ void searchKeyBulk(const uint32_t& laneId,
                                                 const KeyT& myKey,
                                                 ValueT& myValue,
@@ -232,9 +235,9 @@ class GpuSlabHash<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> {
   // returns some debug information about the slab hash
   std::string to_string();
   double computeLoadFactor(int flag);
-  void insertBulk(KeyT* d_key, ValueT* d_value, uint32_t num_vec, int *num_kmers_read,int totkmers, int num_of_reads);
+  void insertUpdate(KeyT* d_key,ValueT*d_index,uint32_t totkmers);
   void buildBulk(KeyT* d_key, ValueT* d_value, uint32_t num_keys);
-  void searchIndividual(KeyT* d_query, ValueT* d_result, uint32_t num_vec,int*num_kmers_read, int totkmers, int num_of_reads);
+  void searchIndividual(KeyT* d_query,KeyT* d_index, ValueT* d_result, uint32_t totkmers);
   void searchBulk(KeyT* d_query, ValueT* d_result, uint32_t num_queries);
   void deleteIndividual(KeyT* d_key, uint32_t num_keys);
   void batchedOperation(KeyT* d_key, ValueT* d_result, uint32_t num_ops);

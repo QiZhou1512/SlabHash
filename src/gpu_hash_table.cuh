@@ -26,7 +26,7 @@ template <typename KeyT,
           SlabHashTypeT SlabHashT>
 class gpu_hash_table {
  private:
-  int num_reads_;
+  
   uint32_t max_keys_;
   uint32_t num_buckets_;
   int64_t seed_;
@@ -43,25 +43,21 @@ class gpu_hash_table {
   uint32_t device_idx_;
 
   // main arrays to hold keys, values, queries, results, etc.
-  KeyT* d_key_;
+  uint32_t* d_key_;
+  uint32_t* d_index_;
   ValueT* d_value_;
-  KeyT* d_query_;
+  uint32_t* d_query_;
   ValueT* d_result_;
-  int* d_num_kmers_read_;
-  int num_kmers_;
-  gpu_hash_table(int num_kmers,
-		 int num_reads,
+  gpu_hash_table(
 		 uint32_t max_keys,
                  uint32_t num_buckets,
                  const uint32_t device_idx, 
                  const int64_t seed,
-                 const bool req_values = true,
+                 const bool req_values = false,
                  const bool identity_hash = false,
                  const bool verbose = false
 		 )
       : 
-	num_kmers_(num_kmers),
-	num_reads_(num_reads),
 	max_keys_(max_keys),
         num_buckets_(num_buckets),
         seed_(seed),
@@ -78,15 +74,11 @@ class gpu_hash_table {
 
     // allocating key, value arrays:
     CHECK_CUDA_ERROR(cudaMalloc((void**)&d_key_, sizeof(KeyT) * max_keys_));
-    CHECK_CUDA_ERROR(cudaMalloc((void**)&d_num_kmers_read_, sizeof(int) * num_reads_ ));
-
-    if (req_values_) {
-      CHECK_CUDA_ERROR(
-          cudaMalloc((void**)&d_value_, sizeof(ValueT) * max_keys));
-    }
-    CHECK_CUDA_ERROR(cudaMalloc((void**)&d_query_, sizeof(KeyT) * max_keys_));
-    CHECK_CUDA_ERROR(
-        cudaMalloc((void**)&d_result_, sizeof(ValueT) *num_kmers_ ));
+    
+    CHECK_CUDA_ERROR(cudaMalloc((void**)&d_index_, sizeof(ValueT) * max_keys_));
+    
+    //CHECK_CUDA_ERROR(cudaMalloc((void**)&d_query_, sizeof(KeyT) * max_keys_));
+    CHECK_CUDA_ERROR( cudaMalloc((void**)&d_result_, sizeof(ValueT) * max_keys_));
 
     // allocate an initialize the allocator:
     dynamic_allocator_ = new DynamicAllocatorT();
@@ -102,11 +94,11 @@ class gpu_hash_table {
   ~gpu_hash_table() {
     CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
     CHECK_CUDA_ERROR(cudaFree(d_key_));
-    CHECK_CUDA_ERROR(cudaFree(d_num_kmers_read_));
     if (req_values_) {
       CHECK_CUDA_ERROR(cudaFree(d_value_));
     }
-    CHECK_CUDA_ERROR(cudaFree(d_query_));
+    CHECK_CUDA_ERROR(cudaFree(d_index_));
+   // CHECK_CUDA_ERROR(cudaFree(d_query_));
     CHECK_CUDA_ERROR(cudaFree(d_result_));
 
     // delete the dynamic allocator:
@@ -117,14 +109,11 @@ class gpu_hash_table {
   }
 
   //insert bulk function	
-  float hash_insert (KeyT* h_key, uint32_t num_blocks, int*h_num_kmers_read,int totkmers ) {
+  float hash_insert (uint32_t* h_key,uint32_t* h_index, uint32_t totkmers) {
     // moving key-values to the device:
     CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
-    CHECK_CUDA_ERROR(cudaMemcpy(d_key_, h_key, sizeof(KeyT) * num_blocks, cudaMemcpyHostToDevice));
-    CHECK_CUDA_ERROR(cudaMemcpy(d_num_kmers_read_, h_num_kmers_read,
-				sizeof(int) * num_reads_,
-				cudaMemcpyHostToDevice));
-
+    CHECK_CUDA_ERROR(cudaMemcpy(d_key_, h_key, sizeof(KeyT) * totkmers, cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_index_, h_index, sizeof(ValueT) * totkmers, cudaMemcpyHostToDevice));
     float temp_time = 0.0f;
 
     cudaEvent_t start, stop;
@@ -134,7 +123,7 @@ class gpu_hash_table {
     cudaEventRecord(start, 0);
 
     // calling slab-hash's bulk insert procedure:
-    slab_hash_->insertBulk(d_key_, d_value_, num_blocks, d_num_kmers_read_,totkmers, num_reads_);
+    slab_hash_->insertUpdate(d_key_,d_index_,totkmers);
 
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
@@ -176,14 +165,19 @@ class gpu_hash_table {
     return temp_time;
   }
 
-  float hash_search(KeyT* h_query, ValueT* h_result, uint32_t num_blocks, int*h_num_kmers_read,int totkmers) {
+  float hash_search(uint32_t* h_query,uint32_t* h_index , ValueT* h_result,uint32_t totkmers) {
     CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
-    CHECK_CUDA_ERROR(cudaMemcpy(d_query_, h_query, sizeof(KeyT) * num_blocks,
-                                cudaMemcpyHostToDevice));
-    CHECK_CUDA_ERROR(cudaMemset(d_result_, 0xFF, sizeof(ValueT) * totkmers));
-    CHECK_CUDA_ERROR(cudaMemcpy(d_num_kmers_read_, h_num_kmers_read,
-                                sizeof(int) * num_reads_,
-                                cudaMemcpyHostToDevice));    
+   /* 
+	                for(int i =0 ; i<totkmers;i++){
+                        for (int k = 63; 0 <= k; k--) {
+                                printf("%c", (h_query[i] & (1ULL << k)) ? '1' : '0');
+                        }
+                        printf("\n");
+                }
+*/
+    //CHECK_CUDA_ERROR(cudaMemcpy(d_query_, h_query, sizeof(KeyT)* totkmers, cudaMemcpyHostToDevice));
+    //CHECK_CUDA_ERROR(cudaMemcpy(d_index_, h_index, sizeof(ValueT)* totkmers, cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemset(d_result_, 0xFF, sizeof(ValueT) * totkmers));   
 
     float temp_time = 0.0f;
 
@@ -193,7 +187,7 @@ class gpu_hash_table {
     cudaEventRecord(start, 0);
 
     // == calling slab hash's individual search:
-    slab_hash_->searchIndividual(d_query_, d_result_,  num_blocks, d_num_kmers_read_,totkmers, num_reads_);
+    slab_hash_->searchIndividual(d_key_, d_index_,d_result_, totkmers);
     //==
 
     cudaEventRecord(stop, 0);
