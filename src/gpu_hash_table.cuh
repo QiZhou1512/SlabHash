@@ -138,10 +138,11 @@ float hash_insert (uint32_t* h_key,uint32_t* h_index, uint32_t totkmers) {
 } 
 
 float hash_insert_buffered(uint32_t *h_key, uint32_t* h_index, uint32_t totkmers){
-	totkmers = 100;
+	//totkmers = 100;
 	//creating the cudahost memory allocation in order to transfer data in stream
 	int k = totkmers/4;
 	uint32_t *h_key_cudaHost, *h_index_cudaHost, *d_key_buffer_0, *d_index_buffer_0,*d_key_buffer_1, *d_index_buffer_1;
+	float temp_time = 0.0f;
 	
 	CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
 	cudaStream_t stream_0, stream_1;
@@ -164,7 +165,11 @@ float hash_insert_buffered(uint32_t *h_key, uint32_t* h_index, uint32_t totkmers
 		h_index_cudaHost[i] = h_index[i];
 	}
 
-		
+    	cudaEvent_t start, stop;
+    	cudaEventCreate(&start);
+    	cudaEventCreate(&stop);
+
+    	cudaEventRecord(start, 0);		
 	cudaMemcpyAsync( d_key_buffer_0, h_key_cudaHost, k * sizeof(uint32_t), cudaMemcpyHostToDevice, stream_0 );
 	cudaMemcpyAsync( d_index_buffer_0, h_index_cudaHost, k * sizeof(uint32_t), cudaMemcpyHostToDevice, stream_0 );
 	
@@ -187,7 +192,13 @@ float hash_insert_buffered(uint32_t *h_key, uint32_t* h_index, uint32_t totkmers
 	cudaStreamSynchronize( stream_0 );
 	cudaStreamSynchronize( stream_1 );
 
-	return 0;	
+	cudaEventRecord(stop, 0);
+    	cudaEventSynchronize(stop);
+    	cudaEventElapsedTime(&temp_time, start, stop);
+
+    	cudaEventDestroy(start);
+    	cudaEventDestroy(stop);
+    	return temp_time;	
 }
 
 
@@ -231,8 +242,8 @@ float hash_insert_buffered(uint32_t *h_key, uint32_t* h_index, uint32_t totkmers
                         printf("\n");
                 }
 */
-    //CHECK_CUDA_ERROR(cudaMemcpy(d_query_, h_query, sizeof(KeyT)* totkmers, cudaMemcpyHostToDevice));
-    //CHECK_CUDA_ERROR(cudaMemcpy(d_index_, h_index, sizeof(ValueT)* totkmers, cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_key_, h_query, sizeof(KeyT)* totkmers, cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_index_, h_index, sizeof(ValueT)* totkmers, cudaMemcpyHostToDevice));
     CHECK_CUDA_ERROR(cudaMemset(d_result_, 0xFF, sizeof(ValueT) * totkmers));   
 
     float temp_time = 0.0f;

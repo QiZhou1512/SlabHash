@@ -18,7 +18,7 @@ __global__ void insert_table_kernel(
   	uint32_t myBucket = 0;
   	int to_insert = 0;
 	int num_div = kmer_len;
-	
+/*	
 	if(tid==0){
 		printf("tid 0\n");
 		printf("totkmers %"PRIu32"\n",totkmers);
@@ -29,7 +29,7 @@ __global__ void insert_table_kernel(
                         }
                         printf("\n");
 		}
-	}
+	}*/
 	if(tid<totkmers){
 			
 			myKey = d_key[tid];
