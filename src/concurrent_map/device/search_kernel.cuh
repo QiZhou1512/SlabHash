@@ -23,6 +23,7 @@ __global__ void search_table(
     KeyT* d_index,
     ValueT* d_results,
     uint32_t totkmers,
+    int kmer_len,
     GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> slab_hash) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
     uint32_t laneId = threadIdx.x & 0x1F;
@@ -39,7 +40,7 @@ __global__ void search_table(
   uint32_t myBucket = 0;
   bool to_search = false;
   uint32_t index = 0 ;
-  int num_div =4;
+  int num_div =kmer_len;
 /////////////////////////////////
 	if(tid==0){
 	 printf("start search\n");

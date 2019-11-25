@@ -4,6 +4,7 @@ __global__ void insert_table_kernel(
 	KeyT* d_key,
 	ValueT* d_index,
     	uint32_t totkmers,
+	int kmer_len,
     	GpuSlabHashContext<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> slab_hash) {
   	uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
   	uint32_t laneId = threadIdx.x & 0x1F;	
@@ -16,18 +17,19 @@ __global__ void insert_table_kernel(
   	KeyT myKey = 0;
   	uint32_t myBucket = 0;
   	int to_insert = 0;
-	int num_div = 4;
-	/*if(tid==0){
+	int num_div = kmer_len;
+	
+	if(tid==0){
 		printf("tid 0\n");
 		printf("totkmers %"PRIu32"\n",totkmers);
 		printf("d_key : %"PRIu32"\n",d_key[tid]);
 		for(int i =0 ; i<totkmers; i++){
                         for (int k = 31; 0 <= k; k--) {
-                                printf("%c", (d_key[i] & (1 << k)) ? '1' : '0');
+                                printf("%c", (d_index[i] & (1 << k)) ? '1' : '0');
                         }
                         printf("\n");
 		}
-	}*/
+	}
 	if(tid<totkmers){
 			
 			myKey = d_key[tid];
