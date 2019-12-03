@@ -18,26 +18,19 @@ __global__ void insert_table_kernel(
   	uint32_t myBucket = 0;
   	int to_insert = 0;
 	int num_div = kmer_len;
-/*	
-	if(tid==0){
-		printf("tid 0\n");
-		printf("totkmers %"PRIu32"\n",totkmers);
-		printf("d_key : %"PRIu32"\n",d_key[tid]);
-		for(int i =0 ; i<totkmers; i++){
-                        for (int k = 31; 0 <= k; k--) {
-                                printf("%c", (d_index[i] & (1 << k)) ? '1' : '0');
-                        }
-                        printf("\n");
-		}
-	}*/
+	
+//	if(tid==0){
+//		printf("tid 0\n");
+//		printf("totkmers %"PRIu32"\n",totkmers);
+//		printf("d_key : %"PRIu32"\n",d_key[tid]);
+//	}
 	if(tid<totkmers){
-			
 			myKey = d_key[tid];
                 	myBucket = slab_hash.computeBucketindex(myKey,d_index[tid], num_div);
-	       //         myBucket = slab_hash.computeBucket(myKey);
 			to_insert = 1;
- 	}
-  	//__syncthreads();
 
+ 	}
+	
   	slab_hash.insertKeyUnique(to_insert, laneId, myKey, myBucket);
+
 }
