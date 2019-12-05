@@ -137,19 +137,18 @@ float hash_insert (uint32_t* h_key,uint32_t* h_index, uint32_t totkmers) {
     return temp_time;
 } 
 
-float hash_insert_buffered(uint32_t *h_key, uint32_t* h_index, uint32_t totkmers){
+float hash_insert_buffered(uint32_t *h_key, uint32_t* h_index, uint64_t totkmers){
 	//totkmers = 27000;
 	//creating the cudahost memory allocation in order to transfer data in stream
-	int k = totkmers/5;
-	uint32_t *h_key_cudaHost, *h_index_cudaHost, *d_key_buffer_0, *d_index_buffer_0,*d_key_buffer_1, *d_index_buffer_1;
+	int div = 5;
+	uint64_t k = totkmers/div;
+	uint32_t *d_key_buffer_0, *d_index_buffer_0,*d_key_buffer_1, *d_index_buffer_1;
 	float temp_time = 0.0f;
 	
 	CHECK_CUDA_ERROR(cudaSetDevice(device_idx_));
 	cudaStream_t stream_0, stream_1;
 	cudaStreamCreate( &stream_0 );
 	cudaStreamCreate( &stream_1 );
-	CHECK_CUDA_ERROR(cudaHostAlloc((void**) &h_key_cudaHost,totkmers*sizeof(uint32_t),cudaHostAllocDefault));
-	CHECK_CUDA_ERROR(cudaHostAlloc((void**) &h_index_cudaHost,totkmers*sizeof(uint32_t),cudaHostAllocDefault));
 	
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&d_key_buffer_0, sizeof(KeyT) * k));
    	CHECK_CUDA_ERROR(cudaMalloc((void**)&d_index_buffer_0, sizeof(ValueT) * k));
@@ -157,37 +156,27 @@ float hash_insert_buffered(uint32_t *h_key, uint32_t* h_index, uint32_t totkmers
 	CHECK_CUDA_ERROR(cudaMalloc((void**)&d_key_buffer_1, sizeof(KeyT) * k));
         CHECK_CUDA_ERROR(cudaMalloc((void**)&d_index_buffer_1, sizeof(ValueT) * k));	
 	
-	printf("%d\n",h_key[0]);
-		
-	for(int i = 0; i<totkmers; i++){
-		//printf("%d",h_key[i]);
-		if(h_key[i]!=0xFFFFFFFF){
-			h_key_cudaHost[i] = h_key[i];
-			h_index_cudaHost[i] = h_index[i];
-		}
-	}
-
     	cudaEvent_t start, stop;
     	cudaEventCreate(&start);
     	cudaEventCreate(&stop);
 
     	cudaEventRecord(start, 0);		
-	cudaMemcpyAsync( d_key_buffer_0, h_key_cudaHost, k * sizeof(uint32_t), cudaMemcpyHostToDevice, stream_0 );
-	cudaMemcpyAsync( d_index_buffer_0, h_index_cudaHost, k * sizeof(uint32_t), cudaMemcpyHostToDevice, stream_0 );
+	cudaMemcpyAsync( d_key_buffer_0, h_key, k * sizeof(uint32_t), cudaMemcpyHostToDevice, stream_0 );
+	cudaMemcpyAsync( d_index_buffer_0, h_index, k * sizeof(uint32_t), cudaMemcpyHostToDevice, stream_0 );
 	
-	for(int i = 0; i<5; i++){
+	for(int i = 0; i<div; i++){
 		printf("index buffer swap : %d\n",i);
 		if(i%2 == 0){
-			cudaMemcpyAsync( d_key_buffer_1, h_key_cudaHost+k*(i+1), k * sizeof(uint32_t), cudaMemcpyHostToDevice, stream_1 );
-			cudaMemcpyAsync( d_index_buffer_1, h_index_cudaHost+k*(i+1), k * sizeof(uint32_t), cudaMemcpyHostToDevice, stream_1 );
+			cudaMemcpyAsync( d_key_buffer_1, h_key+k*(i+1), k * sizeof(uint32_t), cudaMemcpyHostToDevice, stream_1 );
+			cudaMemcpyAsync( d_index_buffer_1, h_index+k*(i+1), k * sizeof(uint32_t), cudaMemcpyHostToDevice, stream_1 );
 			slab_hash_->insertUpdate(d_key_buffer_0,d_index_buffer_0,k, kmer_len_);
 	//		system("nvidia-smi");
-		//	cudaDeviceSynchronize();
+//			cudaDeviceSynchronize();
 			printf("end of kernel: %d\n",i);		
 		}else{
-			if(i != 5-1){
-				cudaMemcpyAsync( d_key_buffer_0, h_key_cudaHost+k*(i+1), k * sizeof(uint32_t), cudaMemcpyHostToDevice, stream_0 );
-        			cudaMemcpyAsync( d_index_buffer_0, h_index_cudaHost+k*(i+1), k * sizeof(uint32_t), cudaMemcpyHostToDevice, stream_0 );
+			if(i != div-1){
+				cudaMemcpyAsync( d_key_buffer_0, h_key+k*(i+1), k * sizeof(uint32_t), cudaMemcpyHostToDevice, stream_0 );
+        			cudaMemcpyAsync( d_index_buffer_0, h_index+k*(i+1), k * sizeof(uint32_t), cudaMemcpyHostToDevice, stream_0 );
 			}
 			slab_hash_->insertUpdate(d_key_buffer_1, d_index_buffer_1, k, kmer_len_);
 		//	cudaDeviceSynchronize();
