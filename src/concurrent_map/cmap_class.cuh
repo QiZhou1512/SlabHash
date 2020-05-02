@@ -236,8 +236,10 @@ class GpuSlabHash<KeyT, ValueT, SlabHashTypeT::ConcurrentMap> {
   std::string to_string();
   double computeLoadFactor(int flag);
   void insertUpdate(KeyT* d_key,ValueT*d_index,uint32_t totkmers);
+  void insertUpdateOnReads(KeyT* d_key_blocks,ValueT*d_whitelist_blocks,uint64_t tot_whitelist_blocks);
   void buildBulk(KeyT* d_key, ValueT* d_value, uint32_t num_keys);
   void searchIndividual(KeyT* d_query,KeyT* d_index, ValueT* d_result, uint32_t totkmers);
+  void searchIndividualOnReads(KeyT* d_key_blocks,KeyT* d_whitelist_blocks, ValueT* d_result, uint64_t tot_whitelist_blocks);
   void searchBulk(KeyT* d_query, ValueT* d_result, uint32_t num_queries);
   void deleteIndividual(KeyT* d_key, uint32_t num_keys);
   void batchedOperation(KeyT* d_key, ValueT* d_result, uint32_t num_ops);
