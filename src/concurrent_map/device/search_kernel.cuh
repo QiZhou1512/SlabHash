@@ -87,22 +87,18 @@ __global__ void search_table_on_reads(
   	bool to_search = false;
   	uint32_t index = 0 ;
   	int num_div =4;
-/////////////////////////////////
         uint32_t block_index = 0;
         uint32_t bit_index = 0;
         block_index = tid/32;
         bit_index = tid%32;
 
-//	if(((uint32_t) (d_whitelist_blocks[tid/32]>>(31-tid%32))&(0x00000001))==0x0){
-  //              return;
-    //    }
-	
+	//check the thread Id and the position on the whitelist	
 	if(tid<32*tot_whitelist_blocks && (((uint32_t) (d_whitelist_blocks[tid/32]>>(31-tid%32))&(0x00000001))!=0x0)){
 
         //                myBucket = slab_hash.computeBucketindex(myQuery,(int)index, num_div);
         	block_index = tid/16;
                 bit_index = (tid%16)*2;
-
+		
                	myQuery = (d_key_blocks[block_index] << bit_index)|
                           (bit_index!=0
                           		?(d_key_blocks[block_index+1]>>(32-bit_index))
@@ -112,17 +108,12 @@ __global__ void search_table_on_reads(
                 to_search = true;
 
         }
-       // __syncthreads();
 
-   slab_hash.searchKey(to_search, laneId, myQuery, myResult, myBucket);
-  // writing back the results:
-  if (tid < 32*tot_whitelist_blocks&&(((uint32_t) (d_whitelist_blocks[tid/32]>>(31-tid%32))&(0x00000001))!=0x0)) {
-    d_results[tid] = myResult;
-		if(myResult == 0){
-                        printf("%d\n",tid);
-                }
-   // printf("myResult :%d\n",myResult);
-  }
+	slab_hash.searchKey(to_search, laneId, myQuery, myResult, myBucket);
+  	// writing back the results:
+ 	 if (tid < 32*tot_whitelist_blocks&&(((uint32_t) (d_whitelist_blocks[tid/32]>>(31-tid%32))&(0x00000001))!=0x0)) {
+    		d_results[tid] = myResult;
+  	}
 }
 
 //=== Bulk search kernel:

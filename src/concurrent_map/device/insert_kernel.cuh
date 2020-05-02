@@ -63,48 +63,9 @@ __global__ void insert_table_kernel_on_reads(
         int offset = 31;
         block_index = tid/32;
         bit_index = (tid%32);
-/*	
-	if(tid == 0){
-                for(int l = 0; l<4; l++){
-                        for (int k = 31; 0 <= k; k--) {
-                                printf("%c", (d_key_blocks[l] & (1 << k)) ? '1' : '0');
-                        }
-                        printf("\n");
-                }
-                for(int j = 0; j<2; j++){
-                        for (int k = 31; 0 <= k; k--) {
-                                printf("%c", (d_whitelist_blocks[j] & (1 << k)) ? '1' : '0');
-                        }
-                        printf("\n");
-                }
-                for(int i = 0; i<31; i++){
-                        block_index = i/16;
-                        bit_index = (i%16)*2;
-                        myKey = (d_key_blocks[block_index] << bit_index)|
-                                (bit_index!=0
-                                                ?(d_key_blocks[block_index+1]>>(32-bit_index))
-                                                :0x0);
-                        printf("tid : %d\n",i);
-                        for (int k = 31; 0 <= k; k--) {
-                                printf("%c", (myKey & (1 << k)) ? '1' : '0');
-                        }
-                        printf("\n");
-                }
-                
-        }
-
-*/
-/*
-	if(((uint32_t) (d_whitelist_blocks[tid/32]>>(31-tid%32))&(0x00000001))==0x0){
-        	block_index = tid/32;
-                bit_index = tid%32;
-                return;
-        }
-*/
-	
+	//check the threads Id number and the position on thw whitelist 	
         if(tid<32*tot_whitelist_blocks && (((uint32_t) (d_whitelist_blocks[tid/32]>>(31-tid%32))&(0x00000001))!=0x0)){
 
-        	
 		block_index = tid/16;
                 bit_index = (tid%16);
 
@@ -124,8 +85,5 @@ __global__ void insert_table_kernel_on_reads(
 		}
  
 	}
-       // __syncthreads();
-//	printf("start insert tid: %d\n",tid);
         slab_hash.insertKeyUnique(to_insert, laneId, myKey, myBucket);
-//	printf("end insert tid: %d\n",tid);
 }
